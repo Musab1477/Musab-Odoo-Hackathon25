@@ -10,7 +10,11 @@ import {
   Factory,
   Menu,
   X,
-  UserCircle
+  UserCircle,
+  ChevronDown,
+  ChevronRight,
+  UserCog,
+  HardHat
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
@@ -21,6 +25,14 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Workcenters', href: '/workcenters', icon: Factory },
   { name: 'Teams', href: '/teams', icon: Users },
+  { 
+    name: 'Users', 
+    icon: UserCog, 
+    submenu: [
+      { name: 'Employee', href: '/users/employees', icon: UserCircle },
+      { name: 'Technicians', href: '/users/technicians', icon: HardHat },
+    ]
+  },
   { name: 'Equipment', href: '/equipment', icon: Cog },
   { name: 'Requests', href: '/requests', icon: ClipboardList },
   { name: 'Calendar', href: '/calendar', icon: Calendar },
@@ -38,6 +50,7 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
 
   // Fetch user profile
   useEffect(() => {
@@ -65,6 +78,26 @@ export function Sidebar() {
 
     fetchProfile();
   }, []);
+
+  // Auto-expand submenu if current path is in submenu
+  useEffect(() => {
+    navigation.forEach(item => {
+      if (item.submenu) {
+        const isSubmenuActive = item.submenu.some(sub => location.pathname === sub.href);
+        if (isSubmenuActive && !expandedMenus.includes(item.name)) {
+          setExpandedMenus(prev => [...prev, item.name]);
+        }
+      }
+    });
+  }, [location.pathname]);
+
+  const toggleSubmenu = (name: string) => {
+    setExpandedMenus(prev => 
+      prev.includes(name) 
+        ? prev.filter(n => n !== name)
+        : [...prev, name]
+    );
+  };
 
   return (
     <>
@@ -118,13 +151,65 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navigation.map((item) => {
+            // Check if item has submenu
+            if (item.submenu) {
+              const isExpanded = expandedMenus.includes(item.name);
+              const isSubmenuActive = item.submenu.some(sub => location.pathname === sub.href);
+              
+              return (
+                <div key={item.name}>
+                  <button
+                    onClick={() => toggleSubmenu(item.name)}
+                    className={cn(
+                      "sidebar-item w-full justify-between",
+                      isSubmenuActive ? "text-primary-foreground" : "text-muted-foreground hover:text-primary-foreground"
+                    )}
+                    title={collapsed ? item.name : undefined}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className="w-5 h-5 flex-shrink-0" />
+                      {!collapsed && <span className="animate-fade-in">{item.name}</span>}
+                    </div>
+                    {!collapsed && (
+                      isExpanded 
+                        ? <ChevronDown className="w-4 h-4" />
+                        : <ChevronRight className="w-4 h-4" />
+                    )}
+                  </button>
+                  {/* Submenu */}
+                  {isExpanded && !collapsed && (
+                    <div className="ml-4 mt-1 space-y-1 animate-fade-in">
+                      {item.submenu.map((subItem) => {
+                        const isSubActive = location.pathname === subItem.href;
+                        return (
+                          <Link
+                            key={subItem.name}
+                            to={subItem.href}
+                            onClick={() => setMobileOpen(false)}
+                            className={cn(
+                              "sidebar-item pl-6",
+                              isSubActive ? "active" : "text-muted-foreground hover:text-primary-foreground"
+                            )}
+                          >
+                            <subItem.icon className="w-4 h-4 flex-shrink-0" />
+                            <span>{subItem.name}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            // Regular menu item
             const isActive = location.pathname === item.href || 
               (item.href !== '/' && location.pathname.startsWith(item.href));
             
             return (
               <Link
                 key={item.name}
-                to={item.href}
+                to={item.href!}
                 onClick={() => setMobileOpen(false)}
                 className={cn(
                   "sidebar-item",

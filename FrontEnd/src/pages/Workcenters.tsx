@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Factory, Cog, MapPin, Building, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Factory, Cog, MapPin, Building, Pencil, Trash2, Calendar } from 'lucide-react';
 import { equipment } from '@/data/mockData';
 import { SmartButton } from '@/components/ui/SmartButton';
 import { Input } from '@/components/ui/input';
@@ -104,6 +104,13 @@ export default function Workcenters() {
     if (!open) {
       setEditWorkcenter(null);
     }
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   const getEquipmentForWorkcenter = (workcenterId: string) => 
@@ -211,6 +218,12 @@ export default function Workcenters() {
                   </div>
                   {workcenter.description && (
                     <p className="text-sm text-muted-foreground mt-3">{workcenter.description}</p>
+                  )}
+                  {workcenter.createdAt && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
+                      <Calendar className="w-3 h-3" />
+                      <span>Created: {formatDate(workcenter.createdAt)}</span>
+                    </div>
                   )}
                 </div>
 

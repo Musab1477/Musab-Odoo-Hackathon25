@@ -16,6 +16,8 @@ import Categories from "./pages/Categories";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Profile from "./pages/Profile";
+import Employees from "./pages/Employees";
+import Technicians from "./pages/Technicians";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +39,8 @@ const App = () => (
           <Route path="/workcenters" element={<Workcenters />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/teams" element={<Teams />} />
+          <Route path="/users/employees" element={<Employees />} />
+          <Route path="/users/technicians" element={<Technicians />} />
           <Route path="/requests" element={<KanbanBoard />} />
           <Route path="/requests/new" element={<RequestForm />} />
           <Route path="/requests/:id" element={<RequestDetail />} />

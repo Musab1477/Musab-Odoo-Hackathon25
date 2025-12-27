@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -7,18 +7,49 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { SmartButton } from '@/components/ui/SmartButton';
-import { Plus } from 'lucide-react';
+import { Plus, Save } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+
+export interface Team {
+  id: string;
+  name: string;
+  description: string;
+  members: Array<{ id: string; name: string; email: string; role: string }>;
+  createdAt: string;
+}
 
 interface AddTeamDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onTeamAdded?: (team: Team) => void;
+  editTeam?: Team | null;
+  onTeamUpdated?: (team: Team) => void;
 }
 
-export function AddTeamDialog({ open, onOpenChange }: AddTeamDialogProps) {
+export function AddTeamDialog({ 
+  open, 
+  onOpenChange,
+  onTeamAdded,
+  editTeam,
+  onTeamUpdated
+}: AddTeamDialogProps) {
   const [teamName, setTeamName] = useState('');
-  const [members, setMembers] = useState('');
+  const [description, setDescription] = useState('');
+
+  const isEditMode = !!editTeam;
+
+  // Populate form when editing
+  useEffect(() => {
+    if (editTeam) {
+      setTeamName(editTeam.name);
+      setDescription(editTeam.description);
+    } else {
+      setTeamName('');
+      setDescription('');
+    }
+  }, [editTeam, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,15 +63,40 @@ export function AddTeamDialog({ open, onOpenChange }: AddTeamDialogProps) {
       return;
     }
 
-    const membersList = members.split(',').map(m => m.trim()).filter(m => m);
-    
-    toast({
-      title: "Success",
-      description: `Team "${teamName}" has been created with ${membersList.length} member(s).`,
-    });
+    if (isEditMode && editTeam) {
+      // Update existing team
+      const updatedTeam: Team = {
+        ...editTeam,
+        name: teamName.trim(),
+        description: description.trim(),
+      };
+      
+      onTeamUpdated?.(updatedTeam);
+      
+      toast({
+        title: "Success",
+        description: `Team "${teamName}" has been updated successfully.`,
+      });
+    } else {
+      // Create new team
+      const newTeam: Team = {
+        id: `team-${Date.now()}`,
+        name: teamName.trim(),
+        description: description.trim(),
+        members: [],
+        createdAt: new Date().toISOString(),
+      };
+
+      onTeamAdded?.(newTeam);
+      
+      toast({
+        title: "Success",
+        description: `Team "${teamName}" has been created successfully.`,
+      });
+    }
     
     setTeamName('');
-    setMembers('');
+    setDescription('');
     onOpenChange(false);
   };
 
@@ -48,7 +104,7 @@ export function AddTeamDialog({ open, onOpenChange }: AddTeamDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Team</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit Team' : 'Add New Team'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="space-y-2">
@@ -62,21 +118,19 @@ export function AddTeamDialog({ open, onOpenChange }: AddTeamDialogProps) {
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="members">Team Members</Label>
-            <Input
-              id="members"
-              placeholder="Enter member names (comma separated)"
-              value={members}
-              onChange={(e) => setMembers(e.target.value)}
+            <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
+            <Textarea
+              id="description"
+              placeholder="Enter team description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
             />
-            <p className="text-xs text-muted-foreground">
-              Add multiple members by separating names with commas (e.g., John Doe, Jane Smith)
-            </p>
           </div>
 
           <div className="flex justify-end pt-4">
-            <SmartButton type="submit" icon={<Plus className="w-4 h-4" />}>
-              Add Team
+            <SmartButton type="submit" icon={isEditMode ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}>
+              {isEditMode ? 'Save Changes' : 'Add Team'}
             </SmartButton>
           </div>
         </form>

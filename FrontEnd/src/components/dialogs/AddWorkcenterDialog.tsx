@@ -18,6 +18,7 @@ export interface Workcenter {
   description: string;
   location: string;
   department: string;
+  createdAt: string;
 }
 
 interface AddWorkcenterDialogProps {
@@ -93,6 +94,7 @@ export function AddWorkcenterDialog({
         description: description.trim(),
         location: location.trim() || 'Not specified',
         department: department.trim() || 'General',
+        createdAt: new Date().toISOString(),
       };
 
       onWorkcenterAdded?.(newWorkcenter);
@@ -148,7 +150,7 @@ export function AddWorkcenterDialog({
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
             <Textarea
               id="description"
               placeholder="Enter workcenter description"
