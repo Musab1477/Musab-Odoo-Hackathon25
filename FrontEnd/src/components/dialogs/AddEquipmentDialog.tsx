@@ -151,24 +151,32 @@ export function AddEquipmentDialog({
   // Load data from localStorage when dialog opens
   useEffect(() => {
     if (open) {
-      setWorkcenters(getStoredWorkcenters());
-      setTeams(getStoredTeams());
-      setEmployees(getStoredEmployees());
-      setTechnicians(getStoredTechnicians());
-      setCategories(getStoredCategories());
+      // First load all available options from localStorage
+      const storedWorkcenters = getStoredWorkcenters();
+      const storedTeams = getStoredTeams();
+      const storedEmployees = getStoredEmployees();
+      const storedTechnicians = getStoredTechnicians();
+      const storedCategories = getStoredCategories();
 
+      setWorkcenters(storedWorkcenters);
+      setTeams(storedTeams);
+      setEmployees(storedEmployees);
+      setTechnicians(storedTechnicians);
+      setCategories(storedCategories);
+
+      // Then set form values (after options are available)
       if (editEquipment) {
-        setName(editEquipment.name);
-        setSerialNumber(editEquipment.serialNumber);
-        setCategory(editEquipment.category);
-        setWorkcenterId(editEquipment.workcenterId);
-        setTeamId(editEquipment.teamId);
-        setUsedById(editEquipment.usedById);
-        setAssignedTechnicianId(editEquipment.assignedTechnicianId);
-        setPurchaseDate(editEquipment.purchaseDate);
-        setWarrantyExpiry(editEquipment.warrantyExpiry);
-        setLocation(editEquipment.location);
-        setStatus(editEquipment.status);
+        setName(editEquipment.name || '');
+        setSerialNumber(editEquipment.serialNumber || '');
+        setCategory(editEquipment.category || '');
+        setWorkcenterId(editEquipment.workcenterId || '');
+        setTeamId(editEquipment.teamId || '');
+        setUsedById(editEquipment.usedById || '');
+        setAssignedTechnicianId(editEquipment.assignedTechnicianId || '');
+        setPurchaseDate(editEquipment.purchaseDate || '');
+        setWarrantyExpiry(editEquipment.warrantyExpiry || '');
+        setLocation(editEquipment.location || '');
+        setStatus(editEquipment.status || 'operational');
       } else {
         setName('');
         setSerialNumber('');

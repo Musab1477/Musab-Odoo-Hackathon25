@@ -118,7 +118,7 @@ export function AddTeamDialog({
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(Optional)</span></Label>
+            <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
               placeholder="Enter team description"
