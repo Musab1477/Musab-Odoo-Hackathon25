@@ -1,18 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { Link } from 'react-router-dom';
-import { Plus, Search, Filter, Cog, MoreVertical, Wrench, Tag } from 'lucide-react';
-import { equipment, workcenters, maintenanceTeams } from '@/data/mockData';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, Search, Filter, Cog, Wrench, Tag, Pencil, Trash2, Calendar } from 'lucide-react';
 import { SmartButton } from '@/components/ui/SmartButton';
-import { Equipment } from '@/types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -20,37 +12,134 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { AddEquipmentDialog } from '@/components/dialogs/AddEquipmentDialog';
+import { AddEquipmentDialog, Equipment } from '@/components/dialogs/AddEquipmentDialog';
+import { toast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Category } from './Categories';
+
+// Helper functions for localStorage
+const EQUIPMENT_STORAGE_KEY = 'gearguard_equipment';
+const CATEGORIES_STORAGE_KEY = 'gearguard_categories';
+
+const getStoredEquipment = (): Equipment[] => {
+  try {
+    const stored = localStorage.getItem(EQUIPMENT_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveEquipmentToStorage = (equipment: Equipment[]) => {
+  localStorage.setItem(EQUIPMENT_STORAGE_KEY, JSON.stringify(equipment));
+};
+
+const getStoredCategories = (): Category[] => {
+  try {
+    const stored = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
 
 export default function EquipmentList() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [showAddEquipment, setShowAddEquipment] = useState(false);
+  const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [editEquipment, setEditEquipment] = useState<Equipment | null>(null);
+  const [deleteEquipment, setDeleteEquipment] = useState<Equipment | null>(null);
 
-  const categories = [...new Set(equipment.map(e => e.category))];
-  const departments = [...new Set(equipment.map(e => e.department))];
+  // Load data from localStorage on mount
+  useEffect(() => {
+    setEquipmentList(getStoredEquipment());
+    setCategories(getStoredCategories());
+  }, []);
 
-  const filteredEquipment = equipment.filter(eq => {
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const filteredEquipment = equipmentList.filter(eq => {
     const matchesSearch = eq.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       eq.serialNumber.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === 'all' || eq.category === categoryFilter;
-    const matchesDepartment = departmentFilter === 'all' || eq.department === departmentFilter;
-    return matchesSearch && matchesCategory && matchesDepartment;
+    return matchesSearch && matchesCategory;
   });
 
   const getStatusColor = (status: Equipment['status']) => {
     switch (status) {
-      case 'active': return 'bg-green-500';
+      case 'operational': return 'bg-green-500';
       case 'under-maintenance': return 'bg-yellow-500';
-      case 'scrapped': return 'bg-red-500';
+      case 'out-of-order': return 'bg-red-500';
+      default: return 'bg-gray-500';
     }
   };
 
-  const getWorkcenterName = (workcenterId?: string) => {
-    if (!workcenterId) return '-';
-    const wc = workcenters.find(w => w.id === workcenterId);
-    return wc ? wc.name : '-';
+  const getStatusLabel = (status: Equipment['status']) => {
+    switch (status) {
+      case 'operational': return 'Operational';
+      case 'under-maintenance': return 'Under Maintenance';
+      case 'out-of-order': return 'Out of Order';
+      default: return status;
+    }
+  };
+
+  const handleAddEquipment = (newEquipment: Equipment) => {
+    const updated = [...equipmentList, newEquipment];
+    setEquipmentList(updated);
+    saveEquipmentToStorage(updated);
+  };
+
+  const handleUpdateEquipment = (updatedEquipment: Equipment) => {
+    const updated = equipmentList.map(eq => 
+      eq.id === updatedEquipment.id ? updatedEquipment : eq
+    );
+    setEquipmentList(updated);
+    saveEquipmentToStorage(updated);
+    setEditEquipment(null);
+  };
+
+  const handleDeleteEquipment = () => {
+    if (!deleteEquipment) return;
+    
+    const updated = equipmentList.filter(eq => eq.id !== deleteEquipment.id);
+    setEquipmentList(updated);
+    saveEquipmentToStorage(updated);
+    
+    toast({
+      title: "Deleted",
+      description: `Equipment "${deleteEquipment.name}" has been deleted.`,
+    });
+    
+    setDeleteEquipment(null);
+  };
+
+  const handleEditClick = (equipment: Equipment) => {
+    setEditEquipment(equipment);
+    setShowAddEquipment(true);
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setShowAddEquipment(open);
+    if (!open) {
+      setEditEquipment(null);
+    }
   };
 
   return (
@@ -119,18 +208,7 @@ export default function EquipmentList() {
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
                 {categories.map(cat => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-              <SelectTrigger className="w-full sm:w-[160px]">
-                <SelectValue placeholder="Department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {departments.map(dept => (
-                  <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -157,68 +235,116 @@ export default function EquipmentList() {
                     >
                       {eq.name}
                     </Link>
-                    <p className="text-xs text-muted-foreground truncate">{eq.serialNumber}</p>
+                    <p className="text-xs text-muted-foreground truncate">{eq.serialNumber || 'No serial number'}</p>
                   </div>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger className="p-1 hover:bg-muted rounded shrink-0">
-                    <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link to={`/equipment/${eq.id}`}>View Details</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link to={`/equipment/${eq.id}/edit`}>Edit</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => handleEditClick(eq)}
+                    className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                    title="Edit Equipment"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteEquipment(eq)}
+                    className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                    title="Delete Equipment"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1.5 text-sm mb-3">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Category:</span>
-                  <span className="truncate ml-2">{eq.category}</span>
+                  <span className="truncate ml-2">{eq.category || '-'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Work Center:</span>
-                  <span className="truncate ml-2">{getWorkcenterName(eq.workcenterId)}</span>
+                  {eq.workcenterName ? (
+                    <span 
+                      onClick={() => navigate('/workcenters')}
+                      className="truncate ml-2 text-primary hover:underline cursor-pointer"
+                    >
+                      {eq.workcenterName}
+                    </span>
+                  ) : (
+                    <span className="truncate ml-2">-</span>
+                  )}
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Maintenance Team:</span>
-                  <span className="truncate ml-2">{eq.maintenanceTeam?.name || '-'}</span>
+                  {eq.teamName ? (
+                    <span 
+                      onClick={() => navigate('/teams')}
+                      className="truncate ml-2 text-primary hover:underline cursor-pointer"
+                    >
+                      {eq.teamName}
+                    </span>
+                  ) : (
+                    <span className="truncate ml-2">-</span>
+                  )}
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Used By:</span>
-                  <span className="truncate ml-2">{eq.assignedEmployee || '-'}</span>
+                  {eq.usedByName ? (
+                    <span 
+                      onClick={() => navigate('/users/employees')}
+                      className="truncate ml-2 text-primary hover:underline cursor-pointer"
+                    >
+                      {eq.usedByName}
+                    </span>
+                  ) : (
+                    <span className="truncate ml-2">-</span>
+                  )}
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Assigned Technician:</span>
+                  {eq.assignedTechnicianName ? (
+                    <span 
+                      onClick={() => navigate('/users/technicians')}
+                      className="truncate ml-2 text-primary hover:underline cursor-pointer"
+                    >
+                      {eq.assignedTechnicianName}
+                    </span>
+                  ) : (
+                    <span className="truncate ml-2">-</span>
+                  )}
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Purchase Date:</span>
-                  <span className="truncate ml-2">{eq.purchaseDate}</span>
+                  <span className="truncate ml-2">{formatDate(eq.purchaseDate)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Warranty Expiry:</span>
-                  <span className="truncate ml-2">{eq.warrantyExpiry}</span>
+                  <span className="truncate ml-2">{formatDate(eq.warrantyExpiry)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Location:</span>
-                  <span className="truncate max-w-[120px] sm:max-w-[150px]">{eq.location}</span>
+                  <span className="truncate max-w-[120px] sm:max-w-[150px]">{eq.location || '-'}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Status:</span>
                   <div className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${getStatusColor(eq.status)}`} />
-                    <span className="capitalize">{eq.status.replace('-', ' ')}</span>
+                    <span>{getStatusLabel(eq.status)}</span>
                   </div>
                 </div>
               </div>
 
+              {eq.createdAt && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mb-3">
+                  <Calendar className="w-3 h-3" />
+                  <span>Created: {formatDate(eq.createdAt)}</span>
+                </div>
+              )}
+
               <div className="pt-3 border-t border-border">
-                <Link to={`/equipment/${eq.id}/requests`}>
+                <Link to={`/equipment/${eq.id}`}>
                   <SmartButton 
                     icon={<Wrench className="w-4 h-4" />}
-                    badge={eq.openRequestCount}
                     className="w-full justify-center text-sm"
                   >
                     Maintenance
@@ -233,11 +359,39 @@ export default function EquipmentList() {
           <div className="text-center py-12 text-muted-foreground">
             <Cog className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No equipment found matching your criteria.</p>
+            <p className="text-sm mt-2">Click "Add Equipment" to create one.</p>
           </div>
         )}
       </div>
 
-      <AddEquipmentDialog open={showAddEquipment} onOpenChange={setShowAddEquipment} />
+      <AddEquipmentDialog 
+        open={showAddEquipment} 
+        onOpenChange={handleDialogClose}
+        onEquipmentAdded={handleAddEquipment}
+        editEquipment={editEquipment}
+        onEquipmentUpdated={handleUpdateEquipment}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteEquipment} onOpenChange={(open) => !open && setDeleteEquipment(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Equipment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteEquipment?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteEquipment}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }

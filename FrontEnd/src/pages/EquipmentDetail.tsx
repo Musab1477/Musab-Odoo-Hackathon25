@@ -1,30 +1,57 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { equipment, maintenanceRequests } from '@/data/mockData';
 import { SmartButton } from '@/components/ui/SmartButton';
-import { StatusBadge, PriorityBadge } from '@/components/ui/StatusBadge';
-import { TechnicianAvatar } from '@/components/ui/TechnicianAvatar';
 import { 
   ArrowLeft, 
-  Edit, 
   Cog, 
   MapPin, 
   Calendar, 
   Shield, 
   Users,
-  Wrench
+  Wrench,
+  Briefcase,
+  User,
+  HardHat,
+  Tag
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Equipment } from '@/components/dialogs/AddEquipmentDialog';
+
+// Helper function for localStorage
+const EQUIPMENT_STORAGE_KEY = 'gearguard_equipment';
+
+const getStoredEquipment = (): Equipment[] => {
+  try {
+    const stored = localStorage.getItem(EQUIPMENT_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
 
 export default function EquipmentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const eq = equipment.find(e => e.id === id);
+  const [equipment, setEquipment] = useState<Equipment | null>(null);
 
-  if (!eq) {
+  useEffect(() => {
+    const allEquipment = getStoredEquipment();
+    const found = allEquipment.find(e => e.id === id);
+    setEquipment(found || null);
+  }, [id]);
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  if (!equipment) {
     return (
       <MainLayout>
         <div className="text-center py-12">
+          <Cog className="w-12 h-12 mx-auto mb-4 opacity-50" />
           <p className="text-muted-foreground">Equipment not found.</p>
           <Link to="/equipment" className="text-primary hover:underline mt-4 inline-block">
             Back to Equipment
@@ -34,14 +61,21 @@ export default function EquipmentDetail() {
     );
   }
 
-  const relatedRequests = maintenanceRequests.filter(r => r.equipmentId === id);
-  const openRequests = relatedRequests.filter(r => r.status === 'New' || r.status === 'In Progress');
-
-  const getStatusColor = (status: typeof eq.status) => {
+  const getStatusColor = (status: Equipment['status']) => {
     switch (status) {
-      case 'active': return 'bg-green-500';
+      case 'operational': return 'bg-green-500';
       case 'under-maintenance': return 'bg-yellow-500';
-      case 'scrapped': return 'bg-red-500';
+      case 'out-of-order': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getStatusLabel = (status: Equipment['status']) => {
+    switch (status) {
+      case 'operational': return 'Operational';
+      case 'under-maintenance': return 'Under Maintenance';
+      case 'out-of-order': return 'Out of Order';
+      default: return status;
     }
   };
 
@@ -64,22 +98,9 @@ export default function EquipmentDetail() {
               <Cog className="w-8 h-8 text-primary" />
             </div>
             <div>
-              <h1 className="page-title font-display">{eq.name}</h1>
-              <p className="text-muted-foreground">{eq.serialNumber}</p>
+              <h1 className="page-title font-display">{equipment.name}</h1>
+              <p className="text-muted-foreground">{equipment.serialNumber || 'No serial number'}</p>
             </div>
-          </div>
-          <div className="flex gap-3">
-            <SmartButton 
-              icon={<Wrench className="w-4 h-4" />}
-              badge={openRequests.length}
-              onClick={() => navigate(`/equipment/${id}/requests`)}
-            >
-              Maintenance
-            </SmartButton>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Edit className="w-4 h-4" />
-              Edit
-            </Button>
           </div>
         </div>
 
@@ -87,149 +108,182 @@ export default function EquipmentDetail() {
           {/* Main Info */}
           <div className="lg:col-span-2 space-y-6">
             {/* General Information */}
-            <div className="form-section">
-              <h3 className="font-semibold mb-4">General Information</h3>
+            <div className="form-section bg-card rounded-xl border border-border p-6">
+              <h3 className="font-semibold mb-4 flex items-center gap-2">
+                <Tag className="w-5 h-5 text-primary" />
+                General Information
+              </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-muted-foreground">Category</label>
-                  <p className="font-medium">{eq.category}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Department</label>
-                  <p className="font-medium">{eq.department}</p>
+                  <p className="font-medium">{equipment.category || '-'}</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Status</label>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className={`w-2 h-2 rounded-full ${getStatusColor(eq.status)}`} />
-                    <span className="font-medium capitalize">{eq.status.replace('-', ' ')}</span>
+                    <span className={`w-2 h-2 rounded-full ${getStatusColor(equipment.status)}`} />
+                    <span className="font-medium">{getStatusLabel(equipment.status)}</span>
                   </div>
                 </div>
-                {eq.assignedEmployee && (
-                  <div>
-                    <label className="text-sm text-muted-foreground">Assigned Employee</label>
-                    <p className="font-medium">{eq.assignedEmployee}</p>
-                  </div>
-                )}
+                <div>
+                  <label className="text-sm text-muted-foreground">Serial Number</label>
+                  <p className="font-medium">{equipment.serialNumber || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Location</label>
+                  <p className="font-medium">{equipment.location || '-'}</p>
+                </div>
               </div>
             </div>
 
             {/* Location & Dates */}
-            <div className="form-section">
-              <h3 className="font-semibold mb-4">Location & Dates</h3>
+            <div className="form-section bg-card rounded-xl border border-border p-6">
+              <h3 className="font-semibold mb-4 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-primary" />
+                Dates & Warranty
+              </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-muted-foreground mt-0.5" />
                   <div>
                     <label className="text-sm text-muted-foreground">Location</label>
-                    <p className="font-medium">{eq.location}</p>
+                    <p className="font-medium">{equipment.location || '-'}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <Calendar className="w-5 h-5 text-muted-foreground mt-0.5" />
                   <div>
                     <label className="text-sm text-muted-foreground">Purchase Date</label>
-                    <p className="font-medium">{new Date(eq.purchaseDate).toLocaleDateString()}</p>
+                    <p className="font-medium">{formatDate(equipment.purchaseDate)}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <Shield className="w-5 h-5 text-muted-foreground mt-0.5" />
                   <div>
                     <label className="text-sm text-muted-foreground">Warranty Expiry</label>
-                    <p className="font-medium">{new Date(eq.warrantyExpiry).toLocaleDateString()}</p>
+                    <p className="font-medium">{formatDate(equipment.warrantyExpiry)}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-5 h-5 text-muted-foreground mt-0.5" />
+                  <div>
+                    <label className="text-sm text-muted-foreground">Created At</label>
+                    <p className="font-medium">{formatDate(equipment.createdAt)}</p>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Recent Requests */}
-            <div className="form-section">
+            <div className="form-section bg-card rounded-xl border border-border p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold">Recent Maintenance Requests</h3>
-                <Link to={`/equipment/${id}/requests`} className="text-sm text-primary hover:underline">
-                  View all
-                </Link>
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Wrench className="w-5 h-5 text-primary" />
+                  Recent Maintenance Requests
+                </h3>
               </div>
-              {relatedRequests.length > 0 ? (
-                <div className="space-y-3">
-                  {relatedRequests.slice(0, 3).map(req => (
-                    <div 
-                      key={req.id} 
-                      className={`p-4 rounded-lg bg-muted/50 ${req.isOverdue ? 'overdue-indicator' : ''}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <Link 
-                          to={`/requests/${req.id}`}
-                          className="font-medium hover:text-primary transition-colors"
-                        >
-                          {req.subject}
-                        </Link>
-                        <StatusBadge status={req.status} />
-                      </div>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                        <span>{req.type}</span>
-                        <PriorityBadge priority={req.priority} />
-                        {req.assignedTechnician && (
-                          <div className="flex items-center gap-1">
-                            <TechnicianAvatar name={req.assignedTechnician.name} size="sm" />
-                            <span>{req.assignedTechnician.name}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-center py-4">No maintenance requests yet.</p>
-              )}
+              <div className="text-center py-8 text-muted-foreground">
+                <Wrench className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                <p>No maintenance requests yet.</p>
+                <p className="text-sm mt-1">Create a maintenance request from the Requests page.</p>
+              </div>
             </div>
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Maintenance Team */}
-            <div className="form-section">
+            {/* Workcenter */}
+            <div className="form-section bg-card rounded-xl border border-border p-6">
               <div className="flex items-center gap-2 mb-4">
-                <Users className="w-5 h-5 text-primary" />
-                <h3 className="font-semibold">Maintenance Team</h3>
+                <Briefcase className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold">Work Center</h3>
               </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm text-muted-foreground">Team</label>
-                  <p className="font-medium">{eq.maintenanceTeam.name}</p>
-                </div>
-                {eq.defaultTechnician && (
-                  <div>
-                    <label className="text-sm text-muted-foreground">Default Technician</label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <TechnicianAvatar name={eq.defaultTechnician.name} size="sm" />
-                      <span className="font-medium">{eq.defaultTechnician.name}</span>
-                    </div>
-                  </div>
+              <div>
+                {equipment.workcenterName ? (
+                  <p 
+                    onClick={() => navigate('/workcenters')}
+                    className="font-medium text-primary hover:underline cursor-pointer"
+                  >
+                    {equipment.workcenterName}
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground">Not assigned</p>
                 )}
               </div>
             </div>
 
-            {/* Notes */}
-            {eq.notes && (
-              <div className="form-section">
-                <h3 className="font-semibold mb-3">Notes</h3>
-                <p className="text-muted-foreground text-sm">{eq.notes}</p>
+            {/* Maintenance Team */}
+            <div className="form-section bg-card rounded-xl border border-border p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Users className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold">Maintenance Team</h3>
               </div>
-            )}
+              <div>
+                {equipment.teamName ? (
+                  <p 
+                    onClick={() => navigate('/teams')}
+                    className="font-medium text-primary hover:underline cursor-pointer"
+                  >
+                    {equipment.teamName}
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground">Not assigned</p>
+                )}
+              </div>
+            </div>
+
+            {/* Assigned Technician */}
+            <div className="form-section bg-card rounded-xl border border-border p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <HardHat className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold">Assigned Technician</h3>
+              </div>
+              <div>
+                {equipment.assignedTechnicianName ? (
+                  <p 
+                    onClick={() => navigate('/users/technicians')}
+                    className="font-medium text-primary hover:underline cursor-pointer"
+                  >
+                    {equipment.assignedTechnicianName}
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground">Not assigned</p>
+                )}
+              </div>
+            </div>
+
+            {/* Used By */}
+            <div className="form-section bg-card rounded-xl border border-border p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <User className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold">Used By</h3>
+              </div>
+              <div>
+                {equipment.usedByName ? (
+                  <p 
+                    onClick={() => navigate('/users/employees')}
+                    className="font-medium text-primary hover:underline cursor-pointer"
+                  >
+                    {equipment.usedByName}
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground">Not assigned</p>
+                )}
+              </div>
+            </div>
 
             {/* Quick Actions */}
-            <div className="form-section">
+            <div className="form-section bg-card rounded-xl border border-border p-6">
               <h3 className="font-semibold mb-3">Quick Actions</h3>
               <div className="space-y-2">
                 <Link 
                   to={`/requests/new?equipmentId=${id}`}
                   className="block"
                 >
-                  <Button variant="outline" className="w-full justify-start">
+                  <SmartButton className="w-full justify-start">
                     <Wrench className="w-4 h-4 mr-2" />
                     Create Maintenance Request
-                  </Button>
+                  </SmartButton>
                 </Link>
               </div>
             </div>

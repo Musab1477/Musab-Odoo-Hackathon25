@@ -1,18 +1,65 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { equipmentCategories } from '@/data/mockData';
 import { SmartButton } from '@/components/ui/SmartButton';
-import { Plus, Tag, Trash2, ArrowLeft } from 'lucide-react';
+import { Plus, Tag, Trash2, ArrowLeft, Pencil, X, Check, Calendar } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+export interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+}
+
+// Helper functions for localStorage
+const CATEGORIES_STORAGE_KEY = 'gearguard_categories';
+
+const getStoredCategories = (): Category[] => {
+  try {
+    const stored = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveCategoriesToStorage = (categories: Category[]) => {
+  localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
+};
 
 export default function Categories() {
   const navigate = useNavigate();
-  const [categories, setCategories] = useState(equipmentCategories);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [deleteCategory, setDeleteCategory] = useState<Category | null>(null);
+
+  // Load categories from localStorage on mount
+  useEffect(() => {
+    setCategories(getStoredCategories());
+  }, []);
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
 
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,12 +73,25 @@ export default function Categories() {
       return;
     }
 
-    const newCategory = {
-      id: `cat${Date.now()}`,
+    // Check for duplicate
+    if (categories.some(c => c.name.toLowerCase() === newCategoryName.trim().toLowerCase())) {
+      toast({
+        title: "Error",
+        description: "Category already exists",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newCategory: Category = {
+      id: `cat-${Date.now()}`,
       name: newCategoryName.trim(),
+      createdAt: new Date().toISOString(),
     };
 
-    setCategories([...categories, newCategory]);
+    const updatedCategories = [...categories, newCategory];
+    setCategories(updatedCategories);
+    saveCategoriesToStorage(updatedCategories);
     setNewCategoryName('');
     
     toast({
@@ -40,12 +100,63 @@ export default function Categories() {
     });
   };
 
-  const handleDeleteCategory = (id: string, name: string) => {
-    setCategories(categories.filter(cat => cat.id !== id));
+  const handleStartEdit = (category: Category) => {
+    setEditingId(category.id);
+    setEditName(category.name);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditName('');
+  };
+
+  const handleSaveEdit = (category: Category) => {
+    if (!editName.trim()) {
+      toast({
+        title: "Error",
+        description: "Category name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check for duplicate (excluding current)
+    if (categories.some(c => c.id !== category.id && c.name.toLowerCase() === editName.trim().toLowerCase())) {
+      toast({
+        title: "Error",
+        description: "Category already exists",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const updatedCategories = categories.map(c => 
+      c.id === category.id ? { ...c, name: editName.trim() } : c
+    );
+    setCategories(updatedCategories);
+    saveCategoriesToStorage(updatedCategories);
+    setEditingId(null);
+    setEditName('');
+
+    toast({
+      title: "Success",
+      description: `Category updated successfully.`,
+    });
+  };
+
+  const handleDeleteCategoryConfirm = () => {
+    if (!deleteCategory) return;
+
+    const updatedCategories = categories.filter(c => c.id !== deleteCategory.id);
+    setCategories(updatedCategories);
+    saveCategoriesToStorage(updatedCategories);
+    
     toast({
       title: "Deleted",
-      description: `Category "${name}" has been removed.`,
+      description: `Category "${deleteCategory.name}" has been removed.`,
     });
+    
+    setDeleteCategory(null);
   };
 
   return (
@@ -99,25 +210,73 @@ export default function Categories() {
                 className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors animate-fade-in"
                 style={{ animationDelay: `${index * 50}ms` }}
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                     <Tag className="w-5 h-5 text-primary" />
                   </div>
-                  <div>
-                    <p className="font-medium">{category.name}</p>
-                    {category.description && (
-                      <p className="text-sm text-muted-foreground">{category.description}</p>
+                  <div className="flex-1 min-w-0">
+                    {editingId === category.id ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="h-8"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveEdit(category);
+                            if (e.key === 'Escape') handleCancelEdit();
+                          }}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                          onClick={() => handleSaveEdit(category)}
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={handleCancelEdit}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="font-medium">{category.name}</p>
+                        {category.createdAt && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>Created: {formatDate(category.createdAt)}</span>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={() => handleDeleteCategory(category.id, category.name)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                {editingId !== category.id && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-primary"
+                      onClick={() => handleStartEdit(category)}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleteCategory(category)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -129,6 +288,27 @@ export default function Categories() {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteCategory} onOpenChange={(open) => !open && setDeleteCategory(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Category</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteCategory?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteCategoryConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }

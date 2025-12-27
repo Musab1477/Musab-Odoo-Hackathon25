@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Factory, Cog, MapPin, Building, Pencil, Trash2, Calendar } from 'lucide-react';
-import { equipment } from '@/data/mockData';
 import { SmartButton } from '@/components/ui/SmartButton';
 import { Input } from '@/components/ui/input';
 import {
@@ -13,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { AddWorkcenterDialog, Workcenter } from '@/components/dialogs/AddWorkcenterDialog';
+import { Equipment } from '@/components/dialogs/AddEquipmentDialog';
 import { toast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -27,6 +27,7 @@ import {
 
 // Helper functions for localStorage
 const WORKCENTERS_STORAGE_KEY = 'gearguard_workcenters';
+const EQUIPMENT_STORAGE_KEY = 'gearguard_equipment';
 
 const getStoredWorkcenters = (): Workcenter[] => {
   try {
@@ -41,18 +42,28 @@ const saveWorkcentersToStorage = (workcenters: Workcenter[]) => {
   localStorage.setItem(WORKCENTERS_STORAGE_KEY, JSON.stringify(workcenters));
 };
 
+const getStoredEquipment = (): Equipment[] => {
+  try {
+    const stored = localStorage.getItem(EQUIPMENT_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
 export default function Workcenters() {
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [showAddWorkcenter, setShowAddWorkcenter] = useState(false);
   const [workcenters, setWorkcenters] = useState<Workcenter[]>([]);
+  const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
   const [editWorkcenter, setEditWorkcenter] = useState<Workcenter | null>(null);
   const [deleteWorkcenter, setDeleteWorkcenter] = useState<Workcenter | null>(null);
 
-  // Load workcenters from localStorage on mount
+  // Load workcenters and equipment from localStorage on mount
   useEffect(() => {
-    const stored = getStoredWorkcenters();
-    setWorkcenters(stored);
+    setWorkcenters(getStoredWorkcenters());
+    setEquipmentList(getStoredEquipment());
   }, []);
 
   const departments = [...new Set(workcenters.map(w => w.department))];
@@ -63,6 +74,11 @@ export default function Workcenters() {
     const matchesDepartment = departmentFilter === 'all' || wc.department === departmentFilter;
     return matchesSearch && matchesDepartment;
   });
+
+  // Get equipment for a specific workcenter
+  const getEquipmentForWorkcenter = (workcenterId: string) => {
+    return equipmentList.filter(eq => eq.workcenterId === workcenterId);
+  };
 
   const handleAddWorkcenter = (newWorkcenter: Workcenter) => {
     const updatedWorkcenters = [...workcenters, newWorkcenter];
@@ -113,15 +129,21 @@ export default function Workcenters() {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  const getEquipmentForWorkcenter = (workcenterId: string) => 
-    equipment.filter(eq => eq.workcenterId === workcenterId);
-
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-500';
+      case 'operational': return 'bg-green-500';
       case 'under-maintenance': return 'bg-yellow-500';
-      case 'scrapped': return 'bg-red-500';
+      case 'out-of-order': return 'bg-red-500';
       default: return 'bg-gray-500';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'operational': return 'Operational';
+      case 'under-maintenance': return 'Under Maintenance';
+      case 'out-of-order': return 'Out of Order';
+      default: return status;
     }
   };
 
@@ -246,14 +268,9 @@ export default function Workcenters() {
                             </p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <span className={`w-2 h-2 rounded-full ${getStatusColor(eq.status)}`} />
-                              <span className="capitalize truncate">{eq.status.replace('-', ' ')}</span>
+                              <span className="truncate">{getStatusLabel(eq.status)}</span>
                             </div>
                           </div>
-                          {eq.openRequestCount > 0 && (
-                            <span className="px-2 py-0.5 text-xs bg-orange-500/10 text-orange-600 rounded-full shrink-0">
-                              {eq.openRequestCount}
-                            </span>
-                          )}
                         </Link>
                       ))}
                     </div>
