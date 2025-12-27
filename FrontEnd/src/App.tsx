@@ -43,6 +43,7 @@ const App = () => (
           <Route path="/users/technicians" element={<Technicians />} />
           <Route path="/requests" element={<KanbanBoard />} />
           <Route path="/requests/new" element={<RequestForm />} />
+          <Route path="/requests/edit/:id" element={<RequestForm />} />
           <Route path="/requests/:id" element={<RequestDetail />} />
           <Route path="/calendar" element={<CalendarView />} />
           <Route path="*" element={<NotFound />} />

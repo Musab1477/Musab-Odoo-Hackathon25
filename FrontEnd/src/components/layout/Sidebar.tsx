@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Wrench, 
@@ -14,10 +14,12 @@ import {
   ChevronDown,
   ChevronRight,
   UserCog,
-  HardHat
+  HardHat,
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
+import { toast } from '@/hooks/use-toast';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -47,10 +49,12 @@ interface UserProfile {
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Fetch user profile
   useEffect(() => {
@@ -97,6 +101,38 @@ export function Sidebar() {
         ? prev.filter(n => n !== name)
         : [...prev, name]
     );
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    const token = localStorage.getItem("access_token");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}auth/logout/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        localStorage.removeItem("access_token");
+        toast({
+          title: "Logged Out",
+          description: "You have been successfully logged out.",
+        });
+        navigate("/login");
+      } else {
+        localStorage.removeItem("access_token");
+        navigate("/login");
+      }
+    } catch (error) {
+      localStorage.removeItem("access_token");
+      navigate("/login");
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -226,6 +262,20 @@ export function Sidebar() {
 
         {/* User Profile & Settings */}
         <div className="p-3 border-t border-border/10">
+          {/* Logout Button */}
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className={cn(
+              "sidebar-item w-full text-muted-foreground hover:text-red-400 hover:bg-red-500/10 mb-2",
+              collapsed && "justify-center"
+            )}
+            title={collapsed ? "Logout" : undefined}
+          >
+            <LogOut className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>}
+          </button>
+          
           {/* User Info */}
           {userProfile && (
             <div className={cn(

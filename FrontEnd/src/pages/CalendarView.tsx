@@ -1,18 +1,57 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { maintenanceRequests } from '@/data/mockData';
 import { ChevronLeft, ChevronRight, Wrench, Clock, Calendar, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { MaintenanceRequestData } from './RequestForm';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 
   'July', 'August', 'September', 'October', 'November', 'December'];
 
+const REQUESTS_STORAGE_KEY = 'gearguard_requests';
+
+const getStoredRequests = (): MaintenanceRequestData[] => {
+  try {
+    const stored = localStorage.getItem(REQUESTS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
 export default function CalendarView() {
+  const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [requests, setRequests] = useState<MaintenanceRequestData[]>([]);
 
-  const preventiveRequests = maintenanceRequests.filter(r => r.type === 'Preventive');
+  // Load requests from localStorage
+  useEffect(() => {
+    const storedRequests = getStoredRequests();
+    console.log('All stored requests:', storedRequests);
+    setRequests(storedRequests);
+  }, []);
+
+  // Filter only Preventive requests that have scheduled date
+  const preventiveRequests = useMemo(() => {
+    const filtered = requests.filter(r => {
+      const isPreventive = r.type === 'Preventive';
+      const hasScheduledDate = r.scheduledDate && r.scheduledDate.length > 0;
+      console.log(`Request: ${r.subject}, Type: ${r.type}, ScheduledDate: ${r.scheduledDate}, IsPreventive: ${isPreventive}, HasDate: ${hasScheduledDate}`);
+      return isPreventive && hasScheduledDate;
+    });
+    console.log('Filtered preventive requests:', filtered);
+    return filtered;
+  }, [requests]);
+
+  // Helper function to format date consistently (YYYY-MM-DD)
+  const formatDateToString = useCallback((date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
 
   const calendarDays = useMemo(() => {
     const year = currentDate.getFullYear();
@@ -21,32 +60,41 @@ export default function CalendarView() {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     
-    const days: { date: Date; isCurrentMonth: boolean; events: typeof preventiveRequests }[] = [];
+    const days: { date: Date; dateStr: string; isCurrentMonth: boolean; events: MaintenanceRequestData[] }[] = [];
     
     // Add days from previous month
     const startPadding = firstDay.getDay();
     for (let i = startPadding - 1; i >= 0; i--) {
       const date = new Date(year, month, -i);
-      days.push({ date, isCurrentMonth: false, events: [] });
+      const dateStr = formatDateToString(date);
+      days.push({ date, dateStr, isCurrentMonth: false, events: [] });
     }
     
     // Add days of current month
     for (let i = 1; i <= lastDay.getDate(); i++) {
       const date = new Date(year, month, i);
-      const dateStr = date.toISOString().split('T')[0];
-      const events = preventiveRequests.filter(r => r.scheduledDate === dateStr);
-      days.push({ date, isCurrentMonth: true, events });
+      const dateStr = formatDateToString(date);
+      // Find events for this date
+      const events = preventiveRequests.filter(r => {
+        const matches = r.scheduledDate === dateStr;
+        if (matches) {
+          console.log(`Date ${dateStr} matched with request: ${r.subject}`);
+        }
+        return matches;
+      });
+      days.push({ date, dateStr, isCurrentMonth: true, events });
     }
     
     // Add days from next month to complete the grid
     const endPadding = 42 - days.length; // 6 rows * 7 days
     for (let i = 1; i <= endPadding; i++) {
       const date = new Date(year, month + 1, i);
-      days.push({ date, isCurrentMonth: false, events: [] });
+      const dateStr = formatDateToString(date);
+      days.push({ date, dateStr, isCurrentMonth: false, events: [] });
     }
     
     return days;
-  }, [currentDate, preventiveRequests]);
+  }, [currentDate, preventiveRequests, formatDateToString]);
 
   const goToPreviousMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
@@ -74,6 +122,10 @@ export default function CalendarView() {
     if (hasEvents) {
       setSelectedDate(dateStr === selectedDate ? null : dateStr);
     }
+  };
+
+  const handleRequestClick = (requestId: string) => {
+    navigate(`/requests/${requestId}`);
   };
 
   return (
@@ -121,41 +173,40 @@ export default function CalendarView() {
           {/* Calendar Grid */}
           <div className="grid grid-cols-7 gap-1">
             {calendarDays.map((day, index) => {
-              const dateStr = day.date.toISOString().split('T')[0];
               const hasEvents = day.events.length > 0;
-              const isSelected = selectedDate === dateStr;
+              const isSelected = selectedDate === day.dateStr;
               
               return (
                 <div
                   key={index}
-                  onClick={() => handleDateClick(dateStr, hasEvents)}
-                  className={`calendar-day relative ${
-                    !day.isCurrentMonth ? 'opacity-50' : ''
-                  } ${isToday(day.date) ? 'bg-primary/10 border-primary' : ''} ${
-                    hasEvents ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/30' : ''
+                  onClick={() => handleDateClick(day.dateStr, hasEvents)}
+                  className={`calendar-day relative min-h-[80px] p-1 border rounded-lg ${
+                    !day.isCurrentMonth ? 'opacity-40 bg-muted/30' : 'bg-card'
+                  } ${isToday(day.date) ? 'bg-primary/10 border-primary border-2' : 'border-border'} ${
+                    hasEvents ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/30 border-blue-300' : ''
                   } ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30' : ''}`}
                 >
                   <div className={`text-sm font-medium mb-1 ${
-                    isToday(day.date) ? 'text-primary' : ''
+                    isToday(day.date) ? 'text-primary font-bold' : ''
                   }`}>
                     {day.date.getDate()}
                   </div>
                   
-                  {/* Preventive Maintenance Indicator */}
+                  {/* Preventive Maintenance Indicator with Request & Equipment Name */}
                   {hasEvents && (
-                    <div className="space-y-1 mt-1">
+                    <div className="space-y-1">
                       {day.events.slice(0, 2).map((event) => (
-                        <div key={event.id} className="bg-blue-100 dark:bg-blue-900/40 rounded px-1 py-0.5">
-                          <p className="text-[10px] font-medium text-blue-700 dark:text-blue-300 truncate">
-                            {event.equipment?.name}
+                        <div key={event.id} className="bg-blue-100 dark:bg-blue-900/40 rounded px-1 py-0.5 border-l-2 border-blue-500">
+                          <p className="text-[10px] font-semibold text-blue-700 dark:text-blue-300 truncate">
+                            {event.subject}
                           </p>
                           <p className="text-[9px] text-blue-600 dark:text-blue-400 truncate">
-                            {event.subject}
+                            🔧 {event.equipmentName}
                           </p>
                         </div>
                       ))}
                       {day.events.length > 2 && (
-                        <p className="text-[9px] text-muted-foreground text-center">
+                        <p className="text-[9px] text-blue-600 font-medium text-center">
                           +{day.events.length - 2} more
                         </p>
                       )}
@@ -196,14 +247,19 @@ export default function CalendarView() {
               {selectedDateEvents.map((event) => (
                 <div 
                   key={event.id} 
-                  className="p-4 rounded-lg bg-muted/50 border border-border"
+                  onClick={() => handleRequestClick(event.id)}
+                  className="p-4 rounded-lg bg-muted/50 border border-border cursor-pointer hover:bg-muted transition-colors"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h4 className="font-medium text-foreground">{event.subject}</h4>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {event.description}
-                      </p>
+                      <h4 className="font-medium text-foreground hover:text-primary transition-colors">
+                        {event.subject}
+                      </h4>
+                      {event.notes && (
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                          {event.notes}
+                        </p>
+                      )}
                     </div>
                   </div>
                   
@@ -212,7 +268,7 @@ export default function CalendarView() {
                       <Wrench className="w-4 h-4 text-muted-foreground" />
                       <div>
                         <p className="text-xs text-muted-foreground">Equipment</p>
-                        <p className="text-sm font-medium">{event.equipment?.name || 'N/A'}</p>
+                        <p className="text-sm font-medium">{event.equipmentName || 'N/A'}</p>
                       </div>
                     </div>
                     
@@ -221,7 +277,7 @@ export default function CalendarView() {
                       <div>
                         <p className="text-xs text-muted-foreground">Scheduled Date</p>
                         <p className="text-sm font-medium">
-                          {new Date(event.scheduledDate).toLocaleDateString()}
+                          {event.scheduledDate ? new Date(event.scheduledDate).toLocaleDateString() : '-'}
                         </p>
                       </div>
                     </div>
@@ -231,7 +287,7 @@ export default function CalendarView() {
                       <div>
                         <p className="text-xs text-muted-foreground">Duration</p>
                         <p className="text-sm font-medium">
-                          {event.duration ? `${event.duration} hours` : 'Not specified'}
+                          {event.durationHours ? `${event.durationHours} hours` : 'Not specified'}
                         </p>
                       </div>
                     </div>
@@ -250,10 +306,22 @@ export default function CalendarView() {
                     </div>
                   </div>
 
-                  {event.assignedTechnician && (
+                  {event.teamName && (
                     <div className="mt-4 pt-4 border-t border-border">
-                      <p className="text-xs text-muted-foreground">Assigned Technician</p>
-                      <p className="text-sm font-medium mt-1">{event.assignedTechnician.name}</p>
+                      <p className="text-xs text-muted-foreground">Assigned Team</p>
+                      <p className="text-sm font-medium mt-1">{event.teamName}</p>
+                      {event.teamMembers && event.teamMembers.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {event.teamMembers.map((member) => (
+                            <span 
+                              key={member.id} 
+                              className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary"
+                            >
+                              {member.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

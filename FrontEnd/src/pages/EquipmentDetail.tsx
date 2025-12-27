@@ -16,9 +16,11 @@ import {
   Tag
 } from 'lucide-react';
 import { Equipment } from '@/components/dialogs/AddEquipmentDialog';
+import { MaintenanceRequestData } from './RequestForm';
 
 // Helper function for localStorage
 const EQUIPMENT_STORAGE_KEY = 'gearguard_equipment';
+const REQUESTS_STORAGE_KEY = 'gearguard_requests';
 
 const getStoredEquipment = (): Equipment[] => {
   try {
@@ -29,15 +31,30 @@ const getStoredEquipment = (): Equipment[] => {
   }
 };
 
+const getStoredRequests = (): MaintenanceRequestData[] => {
+  try {
+    const stored = localStorage.getItem(REQUESTS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
 export default function EquipmentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [equipment, setEquipment] = useState<Equipment | null>(null);
+  const [equipmentRequests, setEquipmentRequests] = useState<MaintenanceRequestData[]>([]);
 
   useEffect(() => {
     const allEquipment = getStoredEquipment();
     const found = allEquipment.find(e => e.id === id);
     setEquipment(found || null);
+
+    // Fetch requests for this equipment
+    const allRequests = getStoredRequests();
+    const requestsForEquipment = allRequests.filter(r => r.equipmentId === id);
+    setEquipmentRequests(requestsForEquipment);
   }, [id]);
 
   // Format date for display
@@ -179,14 +196,58 @@ export default function EquipmentDetail() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold flex items-center gap-2">
                   <Wrench className="w-5 h-5 text-primary" />
-                  Recent Maintenance Requests
+                  Maintenance Requests ({equipmentRequests.length})
                 </h3>
               </div>
-              <div className="text-center py-8 text-muted-foreground">
-                <Wrench className="w-10 h-10 mx-auto mb-3 opacity-50" />
-                <p>No maintenance requests yet.</p>
-                <p className="text-sm mt-1">Create a maintenance request from the Requests page.</p>
-              </div>
+              {equipmentRequests.length > 0 ? (
+                <div className="space-y-3">
+                  {equipmentRequests.map((request) => (
+                    <Link
+                      key={request.id}
+                      to={`/requests/${request.id}`}
+                      className="block p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-muted/30 transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h4 className="font-medium text-foreground hover:text-primary">{request.subject}</h4>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          request.status === 'New' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                          request.status === 'In Progress' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                          request.status === 'Repaired' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                          'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                          {request.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${
+                          request.priority === 'High' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                          request.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                          'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        }`}>
+                          Priority: {request.priority}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${
+                          request.type === 'Corrective' 
+                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' 
+                            : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                        }`}>
+                          Type: {request.type}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
+                        <Calendar className="w-3 h-3" />
+                        <span>Created: {formatDate(request.createdAt)}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Wrench className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                  <p>No maintenance requests yet.</p>
+                  <p className="text-sm mt-1">Create a maintenance request from the Requests page.</p>
+                </div>
+              )}
             </div>
           </div>
 
